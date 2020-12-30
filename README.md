@@ -1,4 +1,4 @@
-# lowRISC Style Guides
+# Systemverilog Coding Style Guides. Forked from lowRISC Style Guides.
 
 This repository contains style guides curated by lowRISC for use in our
 code and documentation.
