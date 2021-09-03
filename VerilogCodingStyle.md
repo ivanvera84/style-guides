@@ -84,7 +84,7 @@ representation of this style guide.
     - [Preferred SystemVerilog Constructs](#preferred-systemverilog-constructs)
     - [Package Dependencies](#package-dependencies)
     - [Module Declaration](#module-declaration)
-    - [Parameterized Module Instantiation](#parameterized-module-instantiation)
+    - [Module Instantiation](#module-instantiation)
     - [Constants](#constants-1)
     - [Signal Widths](#signal-widths)
       - [Always be explicit about the widths of number literals.](#always-be-explicit-about-the-widths-of-number-literals)
@@ -97,9 +97,12 @@ representation of this style guide.
     - [Sequential Logic (Latches)](#sequential-logic-latches)
     - [Sequential Logic (Registers)](#sequential-logic-registers)
     - [Don't Cares (`X`'s)](#dont-cares-xs)
+      - [Catching errors where invalid values are consumed](#catching-errors-where-invalid-values-are-consumed)
+      - [Specific Guidance on Case Statements and Ternaries](#specific-guidance-on-case-statements-and-ternaries)
+      - [Dynamic Array Indexing](#dynamic-array-indexing)
     - [Combinational Logic](#combinational-logic)
     - [Case Statements](#case-statements)
-        - [Wildcards in case items](#wildcards-in-case-items)
+      - [Wildcards in case items](#wildcards-in-case-items)
     - [Generate Constructs](#generate-constructs)
     - [Signed Arithmetic](#signed-arithmetic)
     - [Number Formatting](#number-formatting)
@@ -118,11 +121,13 @@ representation of this style guide.
     - [Differential Pairs](#differential-pairs)
     - [Delays](#delays)
     - [Wildcard import of packages](#wildcard-import-of-packages)
+    - [Assertion Macros](#assertion-macros)
+      - [A Note on Security Critical Applications](#a-note-on-security-critical-applications)
   - [Appendix - Condensed Style Guide](#appendix---condensed-style-guide)
     - [Basic Style Elements](#basic-style-elements)
     - [Construct Naming](#construct-naming)
     - [Suffixes for signals and types](#suffixes-for-signals-and-types)
-    - [Language features](#language-features)
+    - [Language features](#language-features-1)
 
 
 ### Terminology Conventions
@@ -178,13 +183,12 @@ justified by a brief comment, as well as a lint waiver pragma where appropriate.
 
 ### Which Verilog to Use
 
-***Prefer SystemVerilog-2012.***
+***Prefer SystemVerilog-2017.***
 
 All RTL and tests should be developed in SystemVerilog, following the
-[SystemVerilog-2012 standard], except for [prohibited
-features](#problematic-language-features-and-constructs).
+[IEEE 1800-2017 (SystemVerilog-2017) standard](https://ieeexplore.ieee.org/document/8299595), except for [prohibited features](#problematic-language-features-and-constructs).
 
-[SystemVerilog-2012 standard]: http://ieeexplore.ieee.org/servlet/opac?punumber=6469138
+The standards document is available free of cost through [IEEE GET](https://ieeexplore.ieee.org/browse/standards/get-program/page/series?id=80) (a registration is required).
 
 ## Verilog/SystemVerilog Conventions
 
@@ -335,19 +339,19 @@ keyword on the same line as the case expression.
 &#x1f44d;
 ```systemverilog {.good}
 // Consistent use of begin and end for each case item is good.
-unique case (state)
+unique case (state_q)
   StIdle: begin
-    next_state = StA;
+    state_d = StA;
   end
   StA: begin
-    next_state = StB;
+    state_d = StB;
   end
   StB: begin
-    next_state = StIdle;
+    state_d = StIdle;
     foo = bar;
   end
   default: begin
-    next_state = StIdle;
+    state_d = StIdle;
   end
 endcase
 ```
@@ -355,30 +359,30 @@ endcase
 &#x1f44d;
 ```systemverilog {.good}
 // Case items that fit on a single line may omit begin and end.
-unique case (state)
-  StIdle: next_state = StA;
-  StA: next_state = StB;
+unique case (state_q)
+  StIdle: state_d = StA;
+  StA: state_d = StB;
   StB: begin
-    next_state = StIdle;
+    state_d = StIdle;
     foo = bar;
   end
-  default: next_state = StIdle;
+  default: state_d = StIdle;
 endcase
 ```
 
 &#x1f44e;
 ```systemverilog {.bad}
-unique case (state)
-  StIdle:              // These lines are incorrect because we should not wrap
-    next_state = StA;  // case items at a block boundary without using begin
-  StA:                 // and end.  Case items should fit on a single line, or
-    next_state = StB;  // else the procedural block must have begin and end.
+unique case (state_q)
+  StIdle:           // These lines are incorrect because we should not wrap
+    state_d = StA;  // case items at a block boundary without using begin
+  StA:              // and end.  Case items should fit on a single line, or
+    state_d = StB;  // else the procedural block must have begin and end.
   StB: begin
     foo = bar;
-    next_state = StIdle;
+    state_d = StIdle;
   end
   default: begin
-    next_state = StIdle;
+    state_d = StIdle;
   end
 endcase
 ```
@@ -454,7 +458,7 @@ assign bus_concatenation = {
 };
 
 inst_type inst_name1 (
-  .clk_i    (clk),
+  .clk_i       (clk),
   .data_valid_i(data_valid),
   .data_value_i(data_value),
   .data_ready_o(data_ready)
@@ -516,21 +520,47 @@ mymodule mymodule(.a(a),.b(b));
 
 #### Tabular Alignment
 
-***Adding whitespace to cause related things to align is encouraged.***
+Tabular alignment groups two or more similar lines so that the identical parts are directly above one another.
+This alignment makes it easy to see which characters are the same and which characters are different between lines.
 
-Where it is reasonable to do so, align a group of two or more similar lines so
-that the identical parts are directly above one another. This alignment makes it
-easy to see which characters are the same and which characters are different
-between lines.
+***The use of tabular alignment is generally encouraged.***
+
+***The use of tabular alignment is required for some constructs as detailed in the corresponding subsection of this guide.***
+
+Constructs which require tabular alignment:
+
+* [Port expressions in module instantiations](#module-instantiation)
+
+Each block of code, separated by an empty line, is treated as separate "table".
 
 Use spaces, not tabs.
 
 For example:
 
+:+1:
 ```systemverilog
 logic [7:0]  my_interface_data;
 logic [15:0] my_interface_address;
 logic        my_interface_enable;
+
+logic       another_signal;
+logic [7:0] something_else;
+```
+
+:+1:
+```systemverilog
+mod u_mod (
+  .clk_i,
+  .rst_ni,
+  .sig_i          (my_signal_in),
+  .sig2_i         (my_signal_out),
+  // comment with no blank line maintains the block
+  .in_same_block_i(my_signal_in),
+  .sig3_i         (something),
+
+  .in_another_block_i(my_signal_in),
+  .sig4_i            (something)
+);
 ```
 
 #### Expressions
@@ -928,8 +958,8 @@ module my_module #(
     .clk_i,
     .rst_ni,
     .req_valid_i,
-    .req_data_i    (req_data_masked),
-    .req_ready_o,
+    .req_data_i (req_data_masked),
+    .req_ready_o(req_ready),
     ...
   );
 
@@ -1247,9 +1277,7 @@ example, `foo_1`, `foo_2`, etc.). Many synthesis tools map buses into nets using
 that naming convention, so similarly named nets can lead to confusion when
 examining a synthesized netlist.
 
-Reserved
-[Verilog](http://www.xilinx.com/support/documentation/sw_manuals/xilinx13_1/ite_r_verilog_reserved_words.htm)
-or [SystemVerilog-2012 standard] keywords may never be used as names.
+Reserved [Verilog](http://www.xilinx.com/support/documentation/sw_manuals/xilinx13_1/ite_r_verilog_reserved_words.htm) or SystemVerilog keywords may never be used as names.
 
 When interoperating with different languages, be mindful not to use keywords
 from other languages.
@@ -1463,32 +1491,7 @@ output logic b;
 ...
 ```
 
-### Parameterized Module Instantiation
-
-***Use named parameters for all instantiations.***
-
-When parameterizing an instance, specify the parameter using the named parameter
-style. An exception is if there is only one parameter that is obvious such as
-register width, then the instantiation can be implicit.
-
-Indentation for module instantiation follows the standard indentation
-rule of two space indentation.
-
-```systemverilog
-my_module #(
-  .Height(5),
-  .Width(10)
-) my_module (
-  ...etc...
-
-my_reg #(16) my_reg0 (.clk_i, .rst_ni, .d_i(data_in), .q_o(data_out));
-
-```
-Do not specify parameters positionally, unless there is only one parameter and
-the intent of that parameter is obvious, such as the width for a register
-instance.
-
-Do not use `defparam`.
+### Module Instantiation
 
 ***Use named ports to fully specify all instantiations.***
 
@@ -1526,6 +1529,61 @@ example: `.unused_input_port(8'd0)`)
 Do not use positional arguments to connect signals to ports.
 
 Instantiate ports in the same order as they are defined in the module.
+
+Align port expressions in [tabular style](#tabular-alignment).
+Do not include whitespace before the opening parenthesis of the longest port name.
+Do not include whitespace after the opening parenthesis, or before the closing parenthesis enclosing the port expression.
+
+:-1:
+```systemverilog
+mod u_mod(
+  .clk_i,
+  .rst_ni,
+
+  // Not allowed: avoid leading/trailing whitespace in expressions.
+  .sig_1_i( sig_1 ),
+  .sig_2_i( sig_2 )
+);
+
+mod u_mod(
+  .clk_i,
+  .rst_ni,
+
+  .short_sig_i                       (sig_1),
+  // Not allowed: avoid whitespace between the longest signal name and the opening parenthesis.
+  .a_very_long_signal_name_indeed_i  (sig_2)
+);
+```
+
+***Use named parameters for all instantiations.***
+
+When parameterizing an instance, specify the parameter using the named parameter
+style. An exception is if there is only one parameter that is obvious such as
+register width, then the instantiation can be implicit.
+
+Indentation for module instantiation follows the standard indentation
+rule of two space indentation.
+
+```systemverilog
+my_module #(
+  .Height(5),
+  .Width(10)
+) my_module (
+  // ...
+);
+
+my_reg #(16) my_reg0 (
+  .clk_i,
+  .rst_ni,
+  .d_i   (data_in),
+  .q_o   (data_out)
+);
+```
+Do not specify parameters positionally, unless there is only one parameter and
+the intent of that parameter is obvious, such as the width for a register
+instance.
+
+Do not use `defparam`.
 
 ***Do not instantiate recursively.***
 
@@ -1919,9 +1977,9 @@ module mymod (
   logic special_action_en;
 
   assign special_action_en =
-    (external_addr_i == SPECIAL_ADDR) & external_wr_en_i;
+      (external_addr_i == SPECIAL_ADDR) & external_wr_en_i;
 
-  `ASSERT_KNOWN(special_action_en);
+  `ASSERT_KNOWN(special_action_en)
 
 endmodule
 ```
@@ -2176,7 +2234,7 @@ end
 
 #### Wildcards in case items
 
-Use `case` if wildcard operator behavior is not needed. 
+Use `case` if wildcard operator behavior is not needed.
 Use `case inside` if wildcard operator behavior is needed.
 Use `casez` if wildcard operator behavior is needed and Verilog-2001 compatibility is required.
 
